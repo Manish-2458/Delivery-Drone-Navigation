@@ -205,4 +205,10 @@ def test_battery_management():
         if done or truncated:
             break
     
-    print(f
+    print(f"\nBattery Test Complete:")
+    print(f"  Initial Battery: {battery_levels[0]:.1f}%")
+    print(f"  Final Battery: {battery_levels[-1]:.1f}%")
+    print(f"  Battery Used: {battery_levels[0] - battery_levels[-1]:.1f}%")
+    print(f"  Steps Taken: {len(battery_levels)}")
+    
+    env.close()
