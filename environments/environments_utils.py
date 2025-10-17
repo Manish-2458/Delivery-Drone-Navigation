@@ -29,20 +29,34 @@ def get_direction_vector(from_pos: Tuple[float, float], to_pos: Tuple[float, flo
     return (dx / distance, dy / distance)
 
 
-def get_optimal_action(current_pos: Tuple[int, int], target_pos: Tuple[int, int]) -> int:
+def get_optimal_action(current_pos: Tuple[float, float, float], target_pos: Tuple[float, float, float], 
+                      cruise_altitude: float = 30.0) -> int:
     """
-    Get optimal action to move from current position to target position
+    Get optimal action to move from current position to target position in 3D
     
     Actions:
     0: North, 1: South, 2: East, 3: West
     4: NE, 5: NW, 6: SE, 7: SW
-    8: Hover
+    8: Ascend, 9: Descend, 10: Hover
+    11: Pick up, 12: Deliver, 13: Return to base
     """
     dx = target_pos[0] - current_pos[0]
     dy = target_pos[1] - current_pos[1]
     
+    # Handle altitude separately if provided
+    if len(current_pos) > 2 and len(target_pos) > 2:
+        dz = target_pos[2] - current_pos[2]
+        current_alt = current_pos[2]
+        
+        # Prioritize altitude adjustment if far from cruise altitude
+        if abs(current_alt - cruise_altitude) > 5:
+            if current_alt < cruise_altitude - 2:
+                return 8  # Ascend
+            elif current_alt > cruise_altitude + 2:
+                return 9  # Descend
+    
     if abs(dx) < 0.5 and abs(dy) < 0.5:
-        return 8  # Hover
+        return 10  # Hover
     
     # Determine primary direction
     if abs(dx) > abs(dy):
@@ -282,50 +296,76 @@ def normalize_observation(obs: dict, grid_size: int) -> dict:
 
 def create_heuristic_policy(env) -> callable:
     """
-    Create a simple heuristic policy for the environment
+    Create a simple heuristic policy for the 3D environment
     
     Returns:
         Policy function that takes observation and returns action
     """
     def policy(obs):
         """
-        Heuristic policy:
-        1. If no package and at depot, hover
-        2. If no package and not at depot, go to depot
-        3. If has package, go to delivery point
-        4. If low battery, return to depot
+        Heuristic policy for 3D navigation:
+        1. Maintain cruise altitude when traveling
+        2. If no package and at depot, hover or pick up
+        3. If no package and not at depot, go to depot
+        4. If has package, go to delivery point
+        5. If low battery, return to depot
+        6. Descend when near target for pickup/delivery
         """
         position = obs['position']
         battery = obs['battery'][0]
         has_package = obs['package_status']
         
         depot = env.depot_location
-        current_pos = (int(position[0]), int(position[1]))
+        current_pos = (float(position[0]), float(position[1]), float(position[2]))
+        cruise_altitude = 30.0
+        landing_altitude = 7.0
         
-        # Low battery - return to depot
+        # Low battery - return to depot at low altitude
         if battery < 30 and not has_package:
-            return get_optimal_action(current_pos, depot)
+            depot_3d = (float(depot[0]), float(depot[1]), landing_altitude)
+            return get_optimal_action(current_pos, depot_3d, cruise_altitude)
         
         # Has package - go to delivery
         if has_package and env.current_delivery_target:
-            target = (env.current_delivery_target.x, env.current_delivery_target.y)
+            target = (float(env.current_delivery_target.x), 
+                     float(env.current_delivery_target.y))
             
-            # If at delivery point, deliver
-            if euclidean_distance(current_pos, target) < 1:
-                return 10  # Deliver action
+            # Check if at delivery point horizontally
+            horizontal_dist = euclidean_distance(
+                (current_pos[0], current_pos[1]), target
+            )
             
-            return get_optimal_action(current_pos, target)
+            # If close horizontally, descend and deliver
+            if horizontal_dist < 1.5:
+                if current_pos[2] > landing_altitude + 1:
+                    return 9  # Descend
+                else:
+                    return 12  # Deliver action
+            
+            # Navigate to target at cruise altitude
+            target_3d = (target[0], target[1], cruise_altitude)
+            return get_optimal_action(current_pos, target_3d, cruise_altitude)
         
         # No package - go to depot
         if not has_package:
-            # If at depot, pick up package
-            if euclidean_distance(current_pos, depot) < 1:
-                return 9  # Pick up action
+            horizontal_dist = euclidean_distance(
+                (current_pos[0], current_pos[1]), 
+                (float(depot[0]), float(depot[1]))
+            )
             
-            return get_optimal_action(current_pos, depot)
+            # If at depot horizontally, descend and pick up
+            if horizontal_dist < 1.5:
+                if current_pos[2] > landing_altitude + 1:
+                    return 9  # Descend
+                else:
+                    return 11  # Pick up action
+            
+            # Navigate to depot at cruise altitude
+            depot_3d = (float(depot[0]), float(depot[1]), cruise_altitude)
+            return get_optimal_action(current_pos, depot_3d, cruise_altitude)
         
         # Default: hover
-        return 8
+        return 10
     
     return policy
 
