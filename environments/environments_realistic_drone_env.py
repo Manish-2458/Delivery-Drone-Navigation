@@ -909,7 +909,7 @@ class RealisticDroneEnv(gym.Env):
             
             # Fade older path segments
             alpha = int(200 * (i / len(self.path_history)))
-            color = (red + alpha // 3, alpha, blue + alpha // 3)
+            color = (min(255, red + alpha // 3), min(255, alpha), min(255, blue + alpha // 3))
             
             # Line width based on altitude
             line_width = max(1, int(2 + altitude_ratio * 2))
