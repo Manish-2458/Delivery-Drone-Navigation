@@ -4,8 +4,8 @@ Demonstrates various scenarios and capabilities
 """
 
 import numpy as np
-from environments.realistic_drone_env import RealisticDroneEnv, Weather
-from environments.utils import create_heuristic_policy, calculate_delivery_score
+from environments.environments_realistic_drone_env import RealisticDroneEnv, Weather
+from environments.environments_utils import create_heuristic_policy, calculate_delivery_score
 import time
 
 

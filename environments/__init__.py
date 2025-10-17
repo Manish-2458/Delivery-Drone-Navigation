@@ -1,5 +1,5 @@
 """Environments module for Delivery Drone Navigation"""
 
-from environments.realistic_drone_env import RealisticDroneEnv
+from environments.environments_realistic_drone_env import RealisticDroneEnv, Weather
 
-__all__ = ['RealisticDroneEnv']
+__all__ = ['RealisticDroneEnv', 'Weather']
